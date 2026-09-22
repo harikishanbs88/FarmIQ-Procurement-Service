@@ -1,0 +1,505 @@
+Build a complete frontend prototype for a project called **FarmIQ – Smart Procurement Scheduling for Farmers**.
+
+## PURPOSE
+
+FarmIQ is a simple farmer-friendly web application that helps farmers know:
+
+- When and where they can sell their crops
+- Available procurement schedules
+- Their assigned time slot
+- Their digital token number
+- Current queue position
+- Estimated waiting time
+- Procurement status and updates
+
+The goal is to reduce unnecessary waiting, uncertainty and missed procurement opportunities.
+
+## IMPORTANT DESIGN DIRECTION
+
+Do NOT make this look like a futuristic AI startup, crypto dashboard, or high-tech SaaS product.
+
+The interface should feel like a **modern but simple Indian government/public-service website**, designed specifically for farmers.
+
+Think:
+
+- Simple
+- Trustworthy
+- Clean
+- Familiar
+- Easy to understand
+- Large buttons
+- Large readable text
+- Minimal technical terminology
+- Clear icons
+- Simple navigation
+- Mobile-friendly
+- Accessible to people who may not be very comfortable with technology
+
+The user should immediately understand what to do without needing instructions.
+
+Use a calm agricultural/public-service visual style.
+
+Avoid:
+- Neon colors
+- Glassmorphism
+- Excessive gradients
+- Dark futuristic UI
+- Complicated charts
+- Tiny text
+- Excessive animations
+- Cryptocurrency/SaaS-style dashboards
+- Overly sophisticated AI visuals
+
+## TECHNOLOGY
+
+Use ONLY:
+
+- HTML
+- CSS
+- JavaScript
+- React
+
+Use React components properly.
+
+Create a clean Vite-compatible React project.
+
+Do not use backend functionality. This is a frontend prototype, so use realistic mock data and local React state where necessary.
+
+## LANGUAGE
+
+For the prototype, use **simple English**, but structure the UI so that Kannada/Hindi/regional-language support could easily be added later.
+
+Include a visible **Language** selector in the header, for example:
+
+English
+ಕನ್ನಡ
+हिंदी
+
+It does not need to actually translate everything yet.
+
+## MAIN USER FLOW
+
+Design the application around this simple farmer journey:
+
+1. Farmer opens FarmIQ
+2. Farmer registers/selects their crop
+3. Farmer enters location and quantity
+4. FarmIQ shows suitable procurement centres
+5. Farmer selects a centre
+6. Farmer receives a time slot and digital token
+7. Farmer can track their queue
+8. Farmer receives alerts/reminders
+9. Farmer sees procurement status
+
+## PAGES / SCREENS
+
+Create these screens:
+
+### 1. HOME / LANDING PAGE
+
+Simple government-service style homepage.
+
+Header:
+- FarmIQ logo/name
+- Home
+- Find Procurement
+- My Token
+- Alerts
+- Language selector
+- Simple Login/Register button
+
+Hero section:
+
+"Sell Your Crop at the Right Time"
+
+Subtitle:
+"Check procurement schedules, get a time slot and track your queue."
+
+Large primary button:
+
+"Find Procurement Centre"
+
+Secondary button:
+
+"Check My Token"
+
+Below this, show 3 or 4 simple feature cards:
+
+- 📅 Procurement Schedule
+- 🎟️ Digital Token
+- 🕐 Live Queue
+- 📱 Alerts & Updates
+
+Add a simple "How FarmIQ Works" section:
+
+1. Enter Crop Details
+2. Choose Procurement Centre
+3. Get Your Token
+4. Arrive at Your Slot
+5. Sell Your Produce
+
+Keep this extremely easy to understand.
+
+---
+
+### 2. FARMER REGISTRATION
+
+Create a simple form.
+
+Fields:
+
+- Farmer Name
+- Mobile Number
+- Village / Location
+- Crop
+- Quantity
+- Preferred Procurement Centre
+
+Large "Continue" button.
+
+Do not make the form unnecessarily complicated.
+
+---
+
+### 3. CROP / PROCUREMENT SEARCH
+
+Create a farmer-friendly page where the farmer can enter:
+
+Crop:
+[ Select Crop ]
+
+Quantity:
+[ Enter quantity ]
+
+Location:
+[ Use My Location ]
+
+Then:
+
+"Find Procurement Centres"
+
+Show procurement centre cards containing:
+
+- Centre name
+- Distance
+- Crop accepted
+- Available date
+- Available time slots
+- Current queue
+- Approximate waiting time
+
+Example:
+
+"Government Procurement Centre – Ramanagara"
+
+2.5 km away
+
+Crop: Tomato
+
+Available Today
+
+Queue: 18 farmers
+
+Estimated wait: 45 minutes
+
+Button:
+"View Slots"
+
+---
+
+### 4. SLOT SELECTION
+
+Show available dates and time slots in large buttons.
+
+Example:
+
+Today
+
+9:00 AM – 10:00 AM
+10:00 AM – 11:00 AM
+11:00 AM – 12:00 PM
+
+Show capacity clearly.
+
+For example:
+
+10:00 AM
+12 / 20 slots filled
+"Available"
+
+Avoid complicated graphs.
+
+After selection:
+
+"Confirm Slot"
+
+---
+
+### 5. DIGITAL TOKEN PAGE
+
+After confirming a slot, create a very clear token screen.
+
+Large:
+
+"Your Token"
+
+# A-104
+
+Then:
+
+Procurement Centre:
+Ramanagara Government Procurement Centre
+
+Date:
+22 September 2026
+
+Time:
+10:00 AM – 11:00 AM
+
+Queue Position:
+8
+
+Estimated Waiting Time:
+25 minutes
+
+Status:
+"Waiting"
+
+Add buttons:
+
+"Track Queue"
+
+"Get Directions"
+
+"View Details"
+
+The token number should be the most visually prominent element on the page.
+
+---
+
+### 6. LIVE QUEUE PAGE
+
+Create a very simple queue tracker.
+
+Show:
+
+Your Token: A-104
+
+Now Serving: A-096
+
+Your Position: 8
+
+Estimated Wait: 25 minutes
+
+Use a simple progress indicator.
+
+Show:
+
+Now Serving → Your Turn
+
+Do NOT make this look like a complex analytics dashboard.
+
+Also show a small notice:
+
+"Please arrive at the centre 10–15 minutes before your slot."
+
+---
+
+### 7. ALERTS PAGE
+
+Show simple notifications:
+
+"Your procurement slot is tomorrow at 10:00 AM."
+
+"Your queue position is now 8."
+
+"Procurement at Ramanagara Centre has been delayed by 20 minutes."
+
+"Your turn is approaching."
+
+Use large readable notification cards.
+
+---
+
+### 8. MY FARMER DASHBOARD
+
+Create a simple dashboard after login.
+
+Top section:
+
+"Good morning, Farmer"
+
+Then show:
+
+Upcoming Procurement
+
+Crop: Tomato
+Centre: Ramanagara
+Date: Today
+Time: 10:00 AM
+Token: A-104
+
+Button:
+"Track My Queue"
+
+Then:
+
+Quick Actions:
+
+- Find Procurement
+- My Token
+- Schedule
+- Alerts
+
+Also show a simple "Recent Activity" section.
+
+---
+
+## NAVIGATION
+
+For desktop:
+
+Top navigation bar.
+
+For mobile:
+
+Use a simple bottom navigation bar:
+
+Home
+Find
+Token
+Alerts
+Profile
+
+Make the application responsive.
+
+Most importantly, design for **mobile phones first**, because farmers may primarily access the service through smartphones.
+
+## VISUAL STYLE
+
+Use:
+
+- White/light backgrounds
+- Agricultural green as the primary accent
+- Simple secondary colors
+- Dark readable text
+- Large buttons
+- Rounded cards, but not excessive
+- Clear borders
+- Simple icons
+- High contrast
+- Plenty of spacing
+
+Use a professional public-service appearance.
+
+The design should resemble a **modern Indian government digital service**, but cleaner and more user-friendly.
+
+## ACCESSIBILITY
+
+Make text easy to read.
+
+Use minimum comfortable font sizes.
+
+Buttons should be large enough for touch screens.
+
+Do not rely only on color to communicate status.
+
+Use labels such as:
+
+Available
+Full
+Waiting
+Your Turn
+Completed
+
+## MOCK DATA
+
+Use realistic mock data related to Indian agriculture.
+
+Example crops:
+
+- Tomato
+- Potato
+- Onion
+- Rice
+- Ragi
+- Maize
+
+Example locations can use Karnataka-style locations such as:
+
+- Ramanagara
+- Bengaluru Rural
+- Mandya
+- Tumakuru
+- Mysuru
+
+Do not claim the mock procurement data is real.
+
+Clearly treat it as demonstration data.
+
+## COMPONENT STRUCTURE
+
+Create reusable React components such as:
+
+- Header
+- MobileNavigation
+- Button
+- Card
+- ProcurementCentreCard
+- SlotCard
+- TokenCard
+- QueueTracker
+- AlertCard
+- FarmerProfile
+- StatusBadge
+
+Keep the code organized and easy to modify.
+
+## INTERACTIVITY
+
+Even though there is no backend, make the prototype feel functional.
+
+For example:
+
+- Registration form should move to the next screen
+- Crop selection should update the displayed crop
+- Procurement centre selection should open available slots
+- Slot selection should generate/display a mock token
+- Queue page should display the selected token
+- Navigation should work
+- Buttons should have appropriate hover/tap states
+- Use React state for temporary data
+
+Do NOT create fake API calls or pretend that real AI/backend systems are connected.
+
+## AI REPRESENTATION
+
+FarmIQ is described as AI-powered, but do not overuse the word "AI" throughout the interface.
+
+The farmer doesn't need to understand the AI.
+
+Instead of:
+
+"AI-powered predictive procurement optimization engine"
+
+simply say:
+
+"FarmIQ helps you find a suitable time slot."
+
+The technical AI functionality can be shown later in an admin/technical section.
+
+## FINAL RESULT
+
+The finished prototype should feel like:
+
+**A simple government agricultural service that a normal farmer can understand within 10 seconds.**
+
+It should NOT feel like:
+
+**A futuristic AI startup dashboard.**
+
+Prioritize usability and clarity over visual complexity.
+
+Build all the screens above and make the navigation between them functional using React state/routing.
+
+Start by creating the complete frontend project and then ensure it runs correctly in the Replit preview.

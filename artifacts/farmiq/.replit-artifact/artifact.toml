@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "FarmIQ"
+description = "A farmer-friendly procurement scheduling service that helps people find crop collection centres, choose time slots, receive digital tokens, and track their queue using clear demonstration data."
+version = "1.0.0"
+id = "artifacts/farmiq"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21735
+
+[services.development]
+run = "pnpm --filter @workspace/farmiq run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/farmiq", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/farmiq/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21735"
+BASE_PATH = "/"
