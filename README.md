@@ -79,6 +79,46 @@ pnpm run build
 
 ---
 
+## ☁️ Vercel Deployment
+
+The project is fully pre-configured for full-stack deployment on [Vercel](https://vercel.com):
+
+- **Frontend**: Vite React 18 SPA built into `artifacts/farmiq/dist/public`.
+- **Backend API**: Serverless Express function located at `api/index.ts`.
+- **Routing & Rewrites**: Defined in [`vercel.json`](./vercel.json):
+  - `/api/(.*)` &rarr; `/api/index` (Serverless Function)
+  - `/(.*)` &rarr; `/index.html` (Single Page Application fallback)
+
+### Deploying via Vercel Dashboard (Recommended)
+1. Go to [vercel.com/new](https://vercel.com/new).
+2. Import the GitHub repository: `harikishanbs88/FarmIQ-Procurement-Service`.
+3. Vercel will automatically detect `vercel.json` and build settings.
+4. Click **Deploy**.
+
+### Deploying via Vercel CLI
+```powershell
+npx vercel
+# For production:
+npx vercel --prod
+```
+
+---
+
+## 🏛️ Government Portal Grounding & AI Sync Engine
+
+- **Official Data Sources**:
+  - [Agmarknet (Ministry of Agriculture & Farmers Welfare)](https://agmarknet.gov.in)
+  - [Karnataka Krishi Marata Vahini (APMC e-Portal)](https://krishimaratavahini.kar.nic.in)
+  - [Open Government Data Platform India (data.gov.in)](https://data.gov.in)
+- **Real-Time AI Sync**:
+  - SSE (Server-Sent Events) live streaming endpoint at `/api/govt/stream`.
+  - Automatic change-detection & verification engine.
+  - Sub-second UI updates across MSP prices, APMC yard capacity, wait times, and weather alerts.
+  - Interactive "Simulate Govt Update" feature on the live banner for instant demonstration.
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
+
