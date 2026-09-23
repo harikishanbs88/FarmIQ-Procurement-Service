@@ -59,7 +59,8 @@ router.post("/bookings", (req: Request, res: Response) => {
 
 // GET /api/bookings/:token - Retrieve token details
 router.get("/bookings/:token", (req: Request, res: Response) => {
-  const booking = BookingService.getBookingByToken(req.params.token);
+  const token = String(req.params.token);
+  const booking = BookingService.getBookingByToken(token);
   if (!booking) {
     res.status(404).json({ success: false, error: "Token not found" });
     return;
@@ -72,7 +73,8 @@ router.get("/bookings/:token", (req: Request, res: Response) => {
 
 // DELETE /api/bookings/:token - Cancel a booking
 router.delete("/bookings/:token", (req: Request, res: Response) => {
-  const cancelled = BookingService.cancelBooking(req.params.token);
+  const token = String(req.params.token);
+  const cancelled = BookingService.cancelBooking(token);
   if (!cancelled) {
     res.status(404).json({ success: false, error: "Booking token not found" });
     return;

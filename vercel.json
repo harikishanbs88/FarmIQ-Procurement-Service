@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter farmiq run build",
+  "buildCommand": "pnpm --filter @workspace/farmiq run build",
   "outputDirectory": "artifacts/farmiq/dist/public",
   "rewrites": [
     {

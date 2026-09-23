@@ -16,7 +16,7 @@ router.get("/centres", (_req: Request, res: Response) => {
 
 // GET /api/centres/:id - Get a specific procurement centre
 router.get("/centres/:id", (req: Request, res: Response) => {
-  const centre = BookingService.getCentreById(req.params.id);
+  const centre = BookingService.getCentreById(String(req.params.id));
   if (!centre) {
     res.status(404).json({ success: false, error: "Procurement centre not found" });
     return;
