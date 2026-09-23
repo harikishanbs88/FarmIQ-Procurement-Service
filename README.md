@@ -79,28 +79,20 @@ pnpm run build
 
 ---
 
-## ☁️ Vercel Deployment
+## ☁️ Vercel Deployment & Live URLs
 
-The project is fully pre-configured for full-stack deployment on [Vercel](https://vercel.com):
+The project is deployed and live on **Vercel Production**:
 
-- **Frontend**: Vite React 18 SPA built into `artifacts/farmiq/dist/public`.
-- **Backend API**: Serverless Express function located at `api/index.ts`.
+- 🌐 **Live Web Application**: [https://farmiq-procurement-service.vercel.app](https://farmiq-procurement-service.vercel.app)
+- 🔌 **Live Centres API**: [https://farmiq-procurement-service.vercel.app/api/centres](https://farmiq-procurement-service.vercel.app/api/centres)
+- 🌾 **Live Govt Prices API**: [https://farmiq-procurement-service.vercel.app/api/govt/prices](https://farmiq-procurement-service.vercel.app/api/govt/prices)
+
+### Architecture
+- **Frontend**: Vite React 18 SPA built and synchronized to root `public`.
+- **Backend API**: Serverless Express function located at `api/index.js`.
 - **Routing & Rewrites**: Defined in [`vercel.json`](./vercel.json):
   - `/api/(.*)` &rarr; `/api/index` (Serverless Function)
   - `/(.*)` &rarr; `/index.html` (Single Page Application fallback)
-
-### Deploying via Vercel Dashboard (Recommended)
-1. Go to [vercel.com/new](https://vercel.com/new).
-2. Import the GitHub repository: `harikishanbs88/FarmIQ-Procurement-Service`.
-3. Vercel will automatically detect `vercel.json` and build settings.
-4. Click **Deploy**.
-
-### Deploying via Vercel CLI
-```powershell
-npx vercel
-# For production:
-npx vercel --prod
-```
 
 ---
 
