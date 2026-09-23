@@ -29437,10 +29437,10 @@ app.use("/api", routes_default);
 app.use("/", routes_default);
 var app_default = app;
 
-// api/src-entry.ts
-var src_entry_default = app_default;
+// artifacts/api-server/src/serverless.ts
+var serverless_default = app_default;
 export {
-  src_entry_default as default
+  serverless_default as default
 };
 /*! Bundled license information:
 

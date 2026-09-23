@@ -2,7 +2,7 @@ import { build as esbuild } from "esbuild";
 import path from "node:path";
 
 await esbuild({
-  entryPoints: [path.resolve("api/src-entry.ts")],
+  entryPoints: [path.resolve("artifacts/api-server/src/serverless.ts")],
   platform: "node",
   target: "node20",
   bundle: true,
