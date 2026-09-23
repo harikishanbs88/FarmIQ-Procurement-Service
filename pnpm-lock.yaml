@@ -178,6 +178,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.4
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
