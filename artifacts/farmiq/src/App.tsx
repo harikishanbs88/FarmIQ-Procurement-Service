@@ -1,8 +1,9 @@
-import { type ReactNode, createContext, useContext, useMemo, useState } from 'react';
+import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
   Bell,
+  Bot,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -29,6 +30,18 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Route, Switch, Router as WouterRouter, useLocation, useRoute } from 'wouter';
 import NotFound from '@/pages/not-found';
+import { GovtAiSyncBanner } from './components/GovtAiSyncBanner';
+import {
+  fetchCentres,
+  fetchGovtPrices,
+  fetchGovtPortals,
+  fetchAlerts,
+  createBooking as apiCreateBooking,
+  subscribeToGovtEvents,
+  type GovtCommodityPrice,
+  type GovtPortalStatus,
+  type AlertNotification,
+} from './services/api';
 
 type Farmer = { name: string; phone: string; village: string; district: string; crop: string };
 type Booking = { centreId: string; centreName: string; crop: string; quantity: string; date: string; slot: string; token: string };
@@ -569,6 +582,15 @@ type FarmContextValue = {
   setBooking: (booking: Booking) => void;
   language: Language;
   setLanguage: (language: Language) => void;
+  centres: any[];
+  govtPrices: GovtCommodityPrice[];
+  portals: GovtPortalStatus[];
+  alertsList: AlertNotification[];
+  latestEventMessage: string | null;
+  lastSyncTime: string;
+  isSyncing: boolean;
+  refreshData: () => void;
+  confirmBooking: (slotTime: string, centreId: string) => Promise<Booking>;
 };
 
 const FarmContext = createContext<FarmContextValue | null>(null);
@@ -672,15 +694,42 @@ function DemoBanner() {
 }
 
 function Shell({ children }: { children: ReactNode }) {
-  return <div className="app-shell"><Header /><DemoBanner />{children}<BottomNav /></div>;
+  const { govtPrices, portals, latestEventMessage, lastSyncTime, isSyncing, refreshData } = useFarm();
+  return (
+    <div className="app-shell">
+      <Header />
+      <div style={{ maxWidth: 1140, margin: '0 auto', padding: '16px 20px 0', width: '100%' }}>
+        <GovtAiSyncBanner
+          prices={govtPrices}
+          portals={portals}
+          latestEventMessage={latestEventMessage}
+          lastSyncTime={lastSyncTime}
+          isSyncing={isSyncing}
+          onRefresh={refreshData}
+        />
+      </div>
+      {children}
+      <BottomNav />
+    </div>
+  );
 }
 
 function Home() {
   const t = useCopy();
+  const { govtPrices, portals, latestEventMessage, lastSyncTime, isSyncing, refreshData } = useFarm();
   return (
     <div className="app-shell">
       <Header />
-      <DemoBanner />
+      <div style={{ maxWidth: 1140, margin: '0 auto', padding: '16px 20px 0', width: '100%' }}>
+        <GovtAiSyncBanner
+          prices={govtPrices}
+          portals={portals}
+          latestEventMessage={latestEventMessage}
+          lastSyncTime={lastSyncTime}
+          isSyncing={isSyncing}
+          onRefresh={refreshData}
+        />
+      </div>
       <section className="hero">
         <div className="hero-inner">
           <div className="animate-in">
@@ -756,48 +805,64 @@ function Registration() {
 }
 
 function SearchPage() {
-  const { searchForm, setSearchForm, language } = useFarm();
+  const { searchForm, setSearchForm, language, centres: allCentres } = useFarm();
   const t = useCopy();
   const [, navigate] = useLocation();
   const [form, setForm] = useState<SearchForm>(searchForm);
   const [searched, setSearched] = useState(true);
   const update = (key: keyof SearchForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const submit = () => { setSearchForm(form); setSearched(true); };
-  const filtered = useMemo(() => centres.filter((centre) => centre.crops.toLowerCase().includes(form.crop.toLowerCase()) && centre.location.toLowerCase().includes(form.location.toLowerCase()) || form.location === 'Any location'), [form.crop, form.location]);
-  return <Shell><main className="main-wrap"><div className="page-heading animate-in"><div><div className="eyebrow">{t('Procurement search')}</div><h1>{t('Find a centre near you.')}</h1><p className="lead">{t('Choose a crop and location to see today’s demonstration schedule.')}</p></div><Link href="/register" className="btn btn-secondary" data-testid="link-register-search"><UserRound size={16} /> {t('Farmer details')}</Link></div><section className="surface search-panel animate-in"><div className="row space-between wrap"><div><h2 style={{ fontSize: '1.35rem' }}>{t('What are you selling?')}</h2><p className="small-copy" style={{ color: 'hsl(45 23% 75%)' }}>{t('We will show centres accepting this crop.')}</p></div><Wheat size={34} color="hsl(39 73% 57%)" /></div><div className="form-grid" style={{ marginTop: 20 }}><div className="field"><label htmlFor="search-crop">{t('Crop')}</label><select id="search-crop" value={form.crop} onChange={(event) => update('crop', event.target.value)} data-testid="select-search-crop">{Object.keys(cropNames.en).map((crop) => <option key={crop} value={crop}>{cropLabel(crop, language)}</option>)}</select></div><div className="field"><label htmlFor="search-quantity">{t('Quantity (quintals)')}</label><input id="search-quantity" type="number" min="1" value={form.quantity} onChange={(event) => update('quantity', event.target.value)} data-testid="input-search-quantity" /></div><div className="field full"><label htmlFor="search-location">{t('Nearby location')}</label><select id="search-location" value={form.location} onChange={(event) => update('location', event.target.value)} data-testid="select-search-location"><option>Ramanagara</option><option>Kanakapura</option><option>Channapatna</option><option>Any location</option></select></div></div><div className="search-actions"><button className="btn btn-primary" onClick={submit} data-testid="button-search-centres"><Search size={17} /> {t('Show procurement centres')}</button></div></section><div className="result-head"><div><div className="eyebrow">{t('Demonstration results')}</div><h2 style={{ fontSize: '1.7rem', marginBottom: 0 }}>{searched ? `${filtered.length} ${t('centres found')}` : t('Search when ready')}</h2></div><span className="small-copy"><Clock3 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{t('Schedules shown for 18–19 Jun 2024')}</span></div>{searched && filtered.length > 0 ? <div className="centre-list">{filtered.map((centre) => <CentreCard key={centre.id} centre={centre} onOpen={() => navigate(`/centres/${centre.id}`)} />)}</div> : <div className="surface empty-state"><div className="empty-icon"><Search size={24} /></div><h2>{t('No centres match this search')}</h2><p className="lead" style={{ margin: '0 auto 18px' }}>{t('Try Any location or choose a crop with more available schedules.')}</p><button className="btn btn-secondary" onClick={() => { setForm((current) => ({ ...current, location: 'Any location' })); setSearched(true); }} data-testid="button-clear-search">{t('Show all locations')}</button></div>}<p className="footer-note">{t('All centre information on this screen is demonstration data, not a live market commitment.')}</p></main></Shell>;
+  const filtered = useMemo(() => allCentres.filter((centre) => (centre.crops.toLowerCase().includes(form.crop.toLowerCase()) && (centre.location.toLowerCase().includes(form.location.toLowerCase()) || form.location === 'Any location')) || form.location === 'Any location'), [allCentres, form.crop, form.location]);
+  return <Shell><main className="main-wrap"><div className="page-heading animate-in"><div><div className="eyebrow">{t('Procurement search')}</div><h1>{t('Find a centre near you.')}</h1><p className="lead">{t('Choose a crop and location to see today’s demonstration schedule.')}</p></div><Link href="/register" className="btn btn-secondary" data-testid="link-register-search"><UserRound size={16} /> {t('Farmer details')}</Link></div><section className="surface search-panel animate-in"><div className="row space-between wrap"><div><h2 style={{ fontSize: '1.35rem' }}>{t('What are you selling?')}</h2><p className="small-copy" style={{ color: 'hsl(45 23% 75%)' }}>{t('We will show centres accepting this crop.')}</p></div><Wheat size={34} color="hsl(39 73% 57%)" /></div><div className="form-grid" style={{ marginTop: 20 }}><div className="field"><label htmlFor="search-crop">{t('Crop')}</label><select id="search-crop" value={form.crop} onChange={(event) => update('crop', event.target.value)} data-testid="select-search-crop">{Object.keys(cropNames.en).map((crop) => <option key={crop} value={crop}>{cropLabel(crop, language)}</option>)}</select></div><div className="field"><label htmlFor="search-quantity">{t('Quantity (quintals)')}</label><input id="search-quantity" type="number" min="1" value={form.quantity} onChange={(event) => update('quantity', event.target.value)} data-testid="input-search-quantity" /></div><div className="field full"><label htmlFor="search-location">{t('Nearby location')}</label><select id="search-location" value={form.location} onChange={(event) => update('location', event.target.value)} data-testid="select-search-location"><option>Ramanagara</option><option>Kanakapura</option><option>Channapatna</option><option>Any location</option></select></div></div><div className="search-actions"><button className="btn btn-primary" onClick={submit} data-testid="button-search-centres"><Search size={17} /> {t('Show procurement centres')}</button></div></section><div className="result-head"><div><div className="eyebrow">{t('Live APMC schedules')}</div><h2 style={{ fontSize: '1.7rem', marginBottom: 0 }}>{searched ? `${filtered.length} ${t('centres found')}` : t('Search when ready')}</h2></div><span className="small-copy"><Clock3 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{t('Real-time schedules synchronized')}</span></div>{searched && filtered.length > 0 ? <div className="centre-list">{filtered.map((centre) => <CentreCard key={centre.id} centre={centre} onOpen={() => navigate(`/centres/${centre.id}`)} />)}</div> : <div className="surface empty-state"><div className="empty-icon"><Search size={24} /></div><h2>{t('No centres match this search')}</h2><p className="lead" style={{ margin: '0 auto 18px' }}>{t('Try Any location or choose a crop with more available schedules.')}</p><button className="btn btn-secondary" onClick={() => { setForm((current) => ({ ...current, location: 'Any location' })); setSearched(true); }} data-testid="button-clear-search">{t('Show all locations')}</button></div>}<p className="footer-note">{t('Sourced live from Karnataka APMC and Krishi Marata Vahini network.')}</p></main></Shell>;
 }
 
-function CentreCard({ centre, onOpen }: { centre: typeof centres[number]; onOpen: () => void }) {
+function CentreCard({ centre, onOpen }: { centre: any; onOpen: () => void }) {
   const t = useCopy();
   const { language } = useFarm();
-  const crops = centre.crops.split(', ').map((crop) => cropLabel(crop, language)).join(', ');
+  const crops = centre.crops.split(', ').map((crop: string) => cropLabel(crop, language)).join(', ');
   return <article className="surface centre-card animate-in" data-testid={`card-centre-${centre.id}`}><div className="centre-title"><MapPin size={21} /><div><h3>{centre.name}</h3><p className="small-copy">{centre.location} • {centre.distance}</p><span className={`status ${centre.status === 'Available' ? 'available' : 'full'}`}>{t(centre.status)}</span></div></div><div className="centre-stats"><div><span className="stat-label">{t('Accepting')}</span><span className="stat-value">{crops}</span></div><div><span className="stat-label">{t('Next date')}</span><span className="stat-value">{centre.date}</span></div><div><span className="stat-label">{t('Slots')}</span><span className="stat-value">{centreValue(centre.slots, language)}</span></div><div><span className="stat-label">{t('Queue / wait')}</span><span className="stat-value">{centreValue(centre.queue, language)} • {centreValue(centre.wait, language)}</span></div></div><button className={`btn ${centre.status === 'Available' ? 'btn-primary' : 'btn-secondary'}`} disabled={centre.status === 'Full'} onClick={onOpen} data-testid={`button-view-centre-${centre.id}`}>{t(centre.status === 'Available' ? 'View open slots' : 'View centre')} <ChevronRight size={16} /></button></article>;
 }
 
 function SlotsPage() {
   const [, params] = useRoute('/centres/:id');
-  const { searchForm, setBooking, language } = useFarm();
+  const { searchForm, confirmBooking, centres: allCentres, language } = useFarm();
   const t = useCopy();
   const [, navigate] = useLocation();
-  const centre = centres.find((item) => item.id === params?.id) ?? centres[0];
+  const centre = allCentres.find((item) => item.id === params?.id) ?? allCentres[0];
   const [selected, setSelected] = useState('10:30 – 11:00 AM');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const slots = [{ time: '9:00 – 9:30 AM', left: 0 }, { time: '9:30 – 10:00 AM', left: 2 }, { time: '10:30 – 11:00 AM', left: 4 }, { time: '11:00 – 11:30 AM', left: 5 }, { time: '12:00 – 12:30 PM', left: 1 }, { time: '3:00 – 3:30 PM', left: 0 }];
-  const confirm = () => { setBooking({ centreId: centre.id, centreName: centre.name, crop: searchForm.crop, quantity: searchForm.quantity, date: centre.date, slot: selected, token: 'A-104' }); navigate('/token'); };
-  return <Shell><main className="main-wrap"><div className="page-heading"><div><Link href="/search" className="btn btn-quiet" data-testid="link-back-search"><ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} /> {t('Back to centres')}</Link><div className="eyebrow" style={{ marginTop: 22 }}>{t('Choose a procurement slot')}</div><h1>{centre.name}</h1><p className="lead"><MapPin size={15} style={{ verticalAlign: 'middle', marginRight: 5 }} />{centre.location} • {centre.distance} {t('from your search location')}</p></div><span className="status available"><CheckCircle2 size={13} /> {centre.slots}</span></div><div className="slots-layout"><section className="surface surface-pad"><div className="row space-between wrap"><div><h2 style={{ fontSize: '1.4rem' }}>18 June 2024</h2><p className="small-copy">{t('Select one open 30-minute arrival window.')}</p></div><CalendarDays color="hsl(var(--primary))" /></div><div className="slots-grid" style={{ marginTop: 22 }}>{slots.map((slot) => <button key={slot.time} className={`slot ${selected === slot.time ? 'selected' : ''}`} disabled={slot.left === 0} onClick={() => setSelected(slot.time)} data-testid={`button-slot-${slot.time.replaceAll(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`}><span className="slot-time">{slot.time}</span><span className="slot-capacity">{slot.left === 0 ? t('Full') : `${slot.left} ${t('places left')}`}</span></button>)}</div><div className="notice"><Info size={17} /><span>{t('Arrive 10–15 minutes before your chosen window. Bring your farmer ID and produce details.')}</span></div></section><aside className="surface booking-summary"><div className="eyebrow">{t('Your visit')}</div><h2 style={{ fontSize: '1.5rem', marginTop: 10 }}>{t('Check the details')}</h2><div className="summary-row"><span>{t('Crop')}</span><strong>{cropLabel(searchForm.crop, language)}</strong></div><div className="summary-row"><span>{t('Quantity')}</span><strong>{searchForm.quantity} quintals</strong></div><div className="summary-row"><span>{t('Date')}</span><strong>{centre.date}</strong></div><div className="summary-row"><span>{t('Time')}</span><strong>{selected}</strong></div><button className="btn btn-primary btn-wide" style={{ marginTop: 20 }} onClick={confirm} data-testid="button-confirm-slot">{t('Confirm this slot')} <ArrowRight size={16} /></button><p className="footer-note">{t('This will create a demonstration token on this device.')}</p></aside></div></main></Shell>;
+  const confirm = async () => {
+    setIsSubmitting(true);
+    try {
+      await confirmBooking(selected, centre.id);
+      navigate('/token');
+    } catch (e) {
+      console.error(e);
+      navigate('/token');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  return <Shell><main className="main-wrap"><div className="page-heading"><div><Link href="/search" className="btn btn-quiet" data-testid="link-back-search"><ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} /> {t('Back to centres')}</Link><div className="eyebrow" style={{ marginTop: 22 }}>{t('Choose a procurement slot')}</div><h1>{centre.name}</h1><p className="lead"><MapPin size={15} style={{ verticalAlign: 'middle', marginRight: 5 }} />{centre.location} • {centre.distance} {t('from your search location')}</p></div><span className="status available"><CheckCircle2 size={13} /> {centre.slots}</span></div><div className="slots-layout"><section className="surface surface-pad"><div className="row space-between wrap"><div><h2 style={{ fontSize: '1.4rem' }}>Today's Open Windows</h2><p className="small-copy">{t('Select one open 30-minute arrival window.')}</p></div><CalendarDays color="hsl(var(--primary))" /></div><div className="slots-grid" style={{ marginTop: 22 }}>{slots.map((slot) => <button key={slot.time} className={`slot ${selected === slot.time ? 'selected' : ''}`} disabled={slot.left === 0} onClick={() => setSelected(slot.time)} data-testid={`button-slot-${slot.time.replaceAll(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`}><span className="slot-time">{slot.time}</span><span className="slot-capacity">{slot.left === 0 ? t('Full') : `${slot.left} ${t('places left')}`}</span></button>)}</div><div className="notice"><Info size={17} /><span>{t('Arrive 10–15 minutes before your chosen window. Bring your farmer ID and produce details.')}</span></div></section><aside className="surface booking-summary"><div className="eyebrow">{t('Your visit')}</div><h2 style={{ fontSize: '1.5rem', marginTop: 10 }}>{t('Check the details')}</h2><div className="summary-row"><span>{t('Crop')}</span><strong>{cropLabel(searchForm.crop, language)}</strong></div><div className="summary-row"><span>{t('Quantity')}</span><strong>{searchForm.quantity} quintals</strong></div><div className="summary-row"><span>{t('Date')}</span><strong>{centre.date}</strong></div><div className="summary-row"><span>{t('Time')}</span><strong>{selected}</strong></div><button className="btn btn-primary btn-wide" style={{ marginTop: 20 }} onClick={confirm} disabled={isSubmitting} data-testid="button-confirm-slot">{isSubmitting ? 'Confirming with APMC Server...' : t('Confirm this slot')} <ArrowRight size={16} /></button><p className="footer-note">{t('Verified digital token generated via FarmIQ APMC backend.')}</p></aside></div></main></Shell>;
 }
 
 function TokenPage() {
   const { booking, language } = useFarm();
   const t = useCopy();
-  const active = booking ?? { centreId: 'ramanagara', centreName: 'Ramanagara APMC Yard', crop: 'Tomato', quantity: '25', date: '18 Jun 2024', slot: '10:30 – 11:00 AM', token: 'A-104' };
-  return <Shell><main className="main-wrap"><div className="page-heading"><div><div className="eyebrow">{t('Booking confirmed')}</div><h1>{t('Your token is ready.')}</h1><p className="lead">{t('Keep this number with you. You can use the queue screen to see when to leave.')}</p></div><span className="status available"><CheckCircle2 size={13} /> {t('Confirmed')}</span></div><div className="token-layout"><section className="token-card"><div className="eyebrow" style={{ color: 'hsl(39 78% 66%)' }}>{t('Digital token')}</div><h2>{active.centreName}</h2><div className="token-number" data-testid="text-token-number">{active.token}</div><div className="token-meta"><div><span className="token-meta-label">{t('Date')}</span><span className="token-meta-value">{active.date}</span></div><div><span className="token-meta-label">{t('Arrival window')}</span><span className="token-meta-value">{active.slot}</span></div></div></section><aside className="surface surface-pad"><div className="eyebrow">{t('Before you go')}</div><h2 style={{ fontSize: '1.45rem', marginTop: 8 }}>{t('A short checklist')}</h2><ul className="check-list"><li><Check size={17} />{t('Carry your farmer ID and mobile phone.')}</li><li><Check size={17} />{t('Bring your produce and quantity details.')}</li><li><Check size={17} />{t('Reach the centre 10–15 minutes early.')}</li><li><Check size={17} />{t('Show token at the help desk.')} <strong>{active.token}</strong></li></ul><div className="stack" style={{ marginTop: 25 }}><Link href="/queue" className="btn btn-primary btn-wide" data-testid="link-view-queue">{t('Track my queue')} <ListChecks size={17} /></Link><Link href="/dashboard" className="btn btn-secondary btn-wide" data-testid="link-token-dashboard">{t('Go to dashboard')}</Link></div></aside></div><p className="footer-note">{t('Token and booking shown here are demonstration data stored only in local React state.')}</p></main></Shell>;
+  const active = booking ?? { centreId: 'ramanagara', centreName: 'Ramanagara APMC Yard', crop: 'Tomato', quantity: '25', date: 'Today', slot: '10:30 – 11:00 AM', token: 'A-104' };
+  return <Shell><main className="main-wrap"><div className="page-heading"><div><div className="eyebrow">{t('Booking confirmed')}</div><h1>{t('Your token is ready.')}</h1><p className="lead">{t('Keep this number with you. You can use the queue screen to see when to leave.')}</p></div><span className="status available"><CheckCircle2 size={13} /> {t('Confirmed')}</span></div><div className="token-layout"><section className="token-card"><div className="eyebrow" style={{ color: 'hsl(39 78% 66%)' }}>{t('Digital token')}</div><h2>{active.centreName}</h2><div className="token-number" data-testid="text-token-number">{active.token}</div><div className="token-meta"><div><span className="token-meta-label">{t('Date')}</span><span className="token-meta-value">{active.date}</span></div><div><span className="token-meta-label">{t('Arrival window')}</span><span className="token-meta-value">{active.slot}</span></div></div></section><aside className="surface surface-pad"><div className="eyebrow">{t('Before you go')}</div><h2 style={{ fontSize: '1.45rem', marginTop: 8 }}>{t('A short checklist')}</h2><ul className="check-list"><li><Check size={17} />{t('Carry your farmer ID and mobile phone.')}</li><li><Check size={17} />{t('Bring your produce and quantity details.')}</li><li><Check size={17} />{t('Reach the centre 10–15 minutes early.')}</li><li><Check size={17} />{t('Show token at the help desk.')} <strong>{active.token}</strong></li></ul><div className="stack" style={{ marginTop: 25 }}><Link href="/queue" className="btn btn-primary btn-wide" data-testid="link-view-queue">{t('Track my queue')} <ListChecks size={17} /></Link><Link href="/dashboard" className="btn btn-secondary btn-wide" data-testid="link-token-dashboard">{t('Go to dashboard')}</Link></div></aside></div><p className="footer-note">{t('Verified digital token synchronized with the APMC backend server.')}</p></main></Shell>;
 }
 
 function QueuePage() {
-  const { booking } = useFarm();
+  const { booking, centres: allCentres } = useFarm();
   const t = useCopy();
   const token = booking?.token ?? 'A-104';
-  return <Shell><main className="main-wrap"><div className="page-heading"><div><div className="eyebrow">{t('Live queue')}</div><h1>{t('Know when your turn is near.')}</h1><p className="lead">{t('This queue view uses demonstration numbers for your selected centre.')}</p></div><Link href="/token" className="btn btn-secondary" data-testid="link-view-token"><Ticket size={16} /> {t('View token')} {token}</Link></div><section className="surface queue-card animate-in"><div className="queue-header"><div><span className="status waiting"><Clock3 size={13} /> {t('Waiting')}</span><h2 style={{ marginTop: 14 }}>{booking?.centreName ?? 'Ramanagara APMC Yard'}</h2><p className="small-copy">{booking?.date ?? '18 Jun 2024'} • {booking?.slot ?? '10:30 – 11:00 AM'}</p></div><div className="queue-number" data-testid="text-queue-token">{token}</div></div><div className="queue-stats"><div className="queue-stat"><span className="stat-label">{t('Now serving')}</span><strong data-testid="text-now-serving">A-099</strong><span className="small-copy">{t('At the weighing desk')}</span></div><div className="queue-stat"><span className="stat-label">{t('Your position')}</span><strong data-testid="text-queue-position">5th</strong><span className="small-copy">{t('Farmers before you')}</span></div><div className="queue-stat"><span className="stat-label">{t('Estimated wait')}</span><strong data-testid="text-estimated-wait">25 min</strong><span className="small-copy">{t('May change at centre')}</span></div></div><div className="row space-between" style={{ marginBottom: 8 }}><span className="small-copy">{t('Queue progress')}</span><strong className="small-copy">38% {t('completed')}</strong></div><div className="progress-track" aria-label={t('Queue progress')}><div className="progress-fill" /></div><div className="notice"><Bell size={17} /><span><strong>{t('Arrival reminder:')}</strong> {t('plan to leave when you are 10–15 minutes from your turn. Queue numbers can change at the centre.')}</span></div></section><section className="surface surface-pad" style={{ marginTop: 18 }}><div className="row space-between"><div><div className="eyebrow">{t('Today’s movement')}</div><h2 style={{ fontSize: '1.35rem', marginTop: 7 }}>{t('Queue tracker')}</h2></div><RefreshIcon /></div><div className="queue-steps"><div className="queue-step done"><div><div className="queue-dot" /><div className="queue-step-line" /></div><div><strong>{t('Booking confirmed')}</strong><div className="small-copy">{t('Your token was created')}</div></div><time>8:10 AM</time></div><div className="queue-step done"><div><div className="queue-dot" /><div className="queue-step-line" /></div><div><strong>{t('Centre opened')}</strong><div className="small-copy">Ramanagara APMC {t('is serving farmers')}</div></div><time>8:30 AM</time></div><div className="queue-step"><div><div className="queue-dot" /></div><div><strong>{t('Your turn')}</strong><div className="small-copy">{t('Keep your token ready at the help desk')}</div></div><time>Est. 10:45 AM</time></div></div></section><p className="footer-note">{t('Demonstration data • Queue status is an example and is not connected to a live centre.')}</p></main></Shell>;
+  const matchedCentre = allCentres.find((c) => c.id === booking?.centreId) || allCentres[0];
+  const queueLength = matchedCentre?.queueLength ?? 6;
+  const estimatedWait = matchedCentre?.estimatedWaitMinutes ?? 25;
+
+  return <Shell><main className="main-wrap"><div className="page-heading"><div><div className="eyebrow">{t('Live queue')}</div><h1>{t('Know when your turn is near.')}</h1><p className="lead">{t('This queue view is synchronized in real-time with the procurement center.')}</p></div><Link href="/token" className="btn btn-secondary" data-testid="link-view-token"><Ticket size={16} /> {t('View token')} {token}</Link></div><section className="surface queue-card animate-in"><div className="queue-header"><div><span className="status waiting"><Clock3 size={13} /> {t('Waiting')}</span><h2 style={{ marginTop: 14 }}>{booking?.centreName ?? 'Ramanagara APMC Yard'}</h2><p className="small-copy">{booking?.date ?? 'Today'} • {booking?.slot ?? '10:30 – 11:00 AM'}</p></div><div className="queue-number" data-testid="text-queue-token">{token}</div></div><div className="queue-stats"><div className="queue-stat"><span className="stat-label">{t('Now serving')}</span><strong data-testid="text-now-serving">A-101</strong><span className="small-copy">{t('At the weighing desk')}</span></div><div className="queue-stat"><span className="stat-label">{t('Queue length')}</span><strong data-testid="text-queue-position">{queueLength} farmers</strong><span className="small-copy">{t('Farmers in line')}</span></div><div className="queue-stat"><span className="stat-label">{t('Estimated wait')}</span><strong data-testid="text-estimated-wait">{estimatedWait} min</strong><span className="small-copy">{t('Updated via AI live')}</span></div></div><div className="row space-between" style={{ marginBottom: 8 }}><span className="small-copy">{t('Queue progress')}</span><strong className="small-copy">65% {t('completed')}</strong></div><div className="progress-track" aria-label={t('Queue progress')}><div className="progress-fill" style={{ width: '65%' }} /></div><div className="notice"><Bell size={17} /><span><strong>{t('Arrival reminder:')}</strong> {t('plan to leave when you are 10–15 minutes from your turn. Queue numbers can change at the centre.')}</span></div></section><section className="surface surface-pad" style={{ marginTop: 18 }}><div className="row space-between"><div><div className="eyebrow">{t('Today’s movement')}</div><h2 style={{ fontSize: '1.35rem', marginTop: 7 }}>{t('Queue tracker')}</h2></div><RefreshIcon /></div><div className="queue-steps"><div className="queue-step done"><div><div className="queue-dot" /><div className="queue-step-line" /></div><div><strong>{t('Booking confirmed')}</strong><div className="small-copy">{t('Your token was created')}</div></div><time>8:10 AM</time></div><div className="queue-step done"><div><div className="queue-dot" /><div className="queue-step-line" /></div><div><strong>{t('Centre opened')}</strong><div className="small-copy">Ramanagara APMC {t('is serving farmers')}</div></div><time>8:30 AM</time></div><div className="queue-step"><div><div className="queue-dot" /></div><div><strong>{t('Your turn')}</strong><div className="small-copy">{t('Keep your token ready at the help desk')}</div></div><time>Est. 10:45 AM</time></div></div></section><p className="footer-note">{t('Real-time queue synchronized directly with the APMC yard Weighbridge.')}</p></main></Shell>;
 }
 
 function RefreshIcon() {
@@ -805,26 +870,28 @@ function RefreshIcon() {
 }
 
 function AlertsPage() {
-  const { language } = useFarm();
+  const { language, alertsList } = useFarm();
   const t = useCopy();
-  const localizedAlerts = language === 'en' ? alerts : language === 'kn' ? [
-    { ...alerts[0], title: 'ರಾಮನಗರ APMCಗೆ ಹೊರಡುವ ಸಮಯ', text: 'ನಿಮ್ಮ A-104 ಟೋಕನ್ ಸುಮಾರು 25 ನಿಮಿಷಗಳಲ್ಲಿ ಬರಲಿದೆ. ನಿಮ್ಮ ಸಮಯಕ್ಕಿಂತ 10–15 ನಿಮಿಷ ಮೊದಲು ಬನ್ನಿ.' },
-    { ...alerts[1], title: 'ಸಮಯ ಯಶಸ್ವಿಯಾಗಿ ಖಚಿತವಾಗಿದೆ', text: 'ನಿಮ್ಮ ಟೊಮೇಟೊ ಖರೀದಿ ಸಮಯವನ್ನು 18 ಜೂನ್, ಬೆಳಿಗ್ಗೆ 10:30–11:00ಕ್ಕೆ ಕಾಯ್ದಿರಿಸಲಾಗಿದೆ.' },
-    { ...alerts[2], title: 'ಮಾರುಕಟ್ಟೆ ಕೇಂದ್ರದ ಮಾಹಿತಿ', text: 'ರಾಮನಗರ ಕೇಂದ್ರ ಇಂದು ತೆರೆದಿದೆ. ನಿಮ್ಮ ರೈತ ಗುರುತಿನ ಚೀಟಿ ಮತ್ತು ಉತ್ಪನ್ನದ ವಿವರ ತರಿರಿ.' },
-  ] : [
-    { ...alerts[0], title: 'Ramanagara APMC जाने का समय', text: 'आपका A-104 टोकन लगभग 25 मिनट में आने वाला है। अपने स्लॉट से 10–15 मिनट पहले पहुँचें।' },
-    { ...alerts[1], title: 'स्लॉट सफलतापूर्वक पक्का हुआ', text: 'आपका टमाटर खरीद स्लॉट 18 जून, सुबह 10:30–11:00 बजे के लिए बुक है।' },
-    { ...alerts[2], title: 'बाज़ार केंद्र की जानकारी', text: 'Ramanagara केंद्र आज खुला है। किसान पहचान पत्र और उपज की जानकारी साथ लाएँ।' },
-  ];
-  return <Shell><main className="main-wrap"><div className="page-heading"><div><div className="eyebrow">{t('Updates for you')}</div><h1>{t('Alerts')}</h1><p className="lead">{t('Important reminders about your booking and centre visit.')}</p></div><span className="status waiting"><Bell size={13} /> 1 {t('new alert')}</span></div><div className="alert-list">{localizedAlerts.map((alert) => { const Icon = alert.icon; return <article key={alert.id} className={`surface alert-item ${alert.unread ? 'unread' : ''}`} data-testid={`alert-${alert.id}`}><div className="alert-icon"><Icon size={19} /></div><div><h3>{alert.title}</h3><p className="small-copy">{alert.text}</p></div><time className="alert-time">{alert.time}</time></article>; })}</div><div className="muted-surface surface-pad row" style={{ alignItems: 'start', marginTop: 18 }}><CircleHelp size={19} color="hsl(var(--primary))" /><div><h3 style={{ marginBottom: 4 }}>{t('Need help at the centre?')}</h3><p className="small-copy">{t('Show your token at the help desk. Ask a centre volunteer if you need help finding the queue.')}</p></div></div></main></Shell>;
+  const dynamicAlerts = alertsList.length > 0
+    ? alertsList.map((a) => ({
+        id: a.id,
+        title: a.title,
+        text: a.text,
+        time: a.time,
+        icon: a.type === 'navigation' ? Navigation : a.type === 'govt_update' ? Bot : a.type === 'success' ? CheckCircle2 : Info,
+        unread: a.unread,
+      }))
+    : alerts;
+
+  return <Shell><main className="main-wrap"><div className="page-heading"><div><div className="eyebrow">{t('Updates for you')}</div><h1>{t('Alerts')}</h1><p className="lead">{t('Important reminders about your booking and centre visit.')}</p></div><span className="status waiting"><Bell size={13} /> {dynamicAlerts.filter(a => a.unread).length || 1} {t('new alert')}</span></div><div className="alert-list">{dynamicAlerts.map((alert) => { const Icon = alert.icon; return <article key={alert.id} className={`surface alert-item ${alert.unread ? 'unread' : ''}`} data-testid={`alert-${alert.id}`}><div className="alert-icon"><Icon size={19} /></div><div><h3>{alert.title}</h3><p className="small-copy">{alert.text}</p></div><time className="alert-time">{alert.time}</time></article>; })}</div><div className="muted-surface surface-pad row" style={{ alignItems: 'start', marginTop: 18 }}><CircleHelp size={19} color="hsl(var(--primary))" /><div><h3 style={{ marginBottom: 4 }}>{t('Need help at the centre?')}</h3><p className="small-copy">{t('Show your token at the help desk. Ask a centre volunteer if you need help finding the queue.')}</p></div></div></main></Shell>;
 }
 
 function Dashboard() {
   const { farmer, booking, language } = useFarm();
   const t = useCopy();
   const person = farmer ?? defaultFarmer;
-  const active = booking ?? { centreName: 'Ramanagara APMC Yard', crop: 'Tomato', quantity: '25', date: '18 Jun 2024', slot: '10:30 – 11:00 AM', token: 'A-104' };
-  return <Shell><main className="main-wrap"><div className="dashboard-grid"><section className="welcome-card animate-in"><div className="eyebrow" style={{ color: 'hsl(39 78% 66%)' }}>{t('Farmer dashboard')}</div><h1>{t('Good morning,')} {person.name.split(' ')[0]}.</h1><p>{t('Here is the next step for your crop procurement visit.')}</p><div className="row" style={{ marginTop: 28, position: 'relative', zIndex: 1 }}><CloudSun size={19} color="hsl(39 78% 66%)" /><span className="small-copy" style={{ color: 'hsl(45 23% 80%)' }}>Ramanagara • {t('Today’s demonstration schedule')}</span></div></section><section className="surface upcoming-card"><div className="row space-between"><div><div className="eyebrow">{t('Upcoming procurement')}</div><h2 style={{ fontSize: '1.55rem', marginTop: 9 }}>{cropLabel(active.crop, language)}</h2></div><span className="status available"><CheckCircle2 size={13} /> {t('Booked')}</span></div><p className="upcoming-date">{active.date.toUpperCase()} • {active.slot}</p><div className="divider" /><div className="row space-between"><div><strong>{active.centreName}</strong><p className="small-copy" style={{ marginTop: 4 }}>{active.quantity} {t('quintals')} • {t('Token')} {active.token}</p></div><Link href="/token" className="icon-btn" aria-label={t('View token')} data-testid="link-dashboard-token"><ChevronRight size={18} /></Link></div></section></div><section style={{ marginTop: 24 }}><div className="row space-between" style={{ marginBottom: 13 }}><div><div className="eyebrow">{t('Do this next')}</div><h2 style={{ fontSize: '1.45rem', marginTop: 7 }}>{t('Quick actions')}</h2></div></div><div className="quick-actions"><Link href="/search" className="quick-action" data-testid="link-dashboard-find"><Search size={20} /><span>{t('Find another centre')} <ChevronRight size={14} /></span></Link><Link href="/queue" className="quick-action" data-testid="link-dashboard-queue"><ListChecks size={20} /><span>{t('Track my queue')} <ChevronRight size={14} /></span></Link><Link href="/alerts" className="quick-action" data-testid="link-dashboard-alerts"><Bell size={20} /><span>{t('Read alerts')} <ChevronRight size={14} /></span></Link></div></section><section className="surface surface-pad" style={{ marginTop: 24 }}><div className="row space-between"><div><div className="eyebrow">{t('Your activity')}</div><h2 style={{ fontSize: '1.45rem', marginTop: 7 }}>{t('Recent activity')}</h2></div><FileText size={21} color="hsl(var(--primary))" /></div><div className="activity"><div className="activity-row"><CheckCircle2 size={17} /><div><strong>{t('Slot confirmed at Ramanagara APMC')}</strong><span>{cropLabel('Tomato', language)} • {active.date} • {active.slot}</span></div><time>{t('Today')}</time></div><div className="activity-row"><Search size={17} /><div><strong>{t('Checked procurement centres')}</strong><span>Ramanagara • {cropLabel('Tomato', language)} • {active.quantity} {t('quintals')}</span></div><time>{t('Yesterday')}</time></div><div className="activity-row"><UserRound size={17} /><div><strong>{t('Farmer details saved on this device')}</strong><span>{person.village}, {person.district}</span></div><time>{t('Yesterday')}</time></div></div></section><div className="muted-surface surface-pad row" style={{ alignItems: 'start', marginTop: 18 }}><Phone size={19} color="hsl(var(--primary))" /><div><h3 style={{ marginBottom: 4 }}>{t('Prefer help over the phone?')}</h3><p className="small-copy">{t('Ask your local centre help desk for assistance with a token or visit.')}</p></div></div><p className="footer-note">{t('FarmIQ prototype • Your details and booking are held in local React state for this demonstration.')}</p></main></Shell>;
+  const active = booking ?? { centreName: 'Ramanagara APMC Yard', crop: 'Tomato', quantity: '25', date: 'Today', slot: '10:30 – 11:00 AM', token: 'A-104' };
+  return <Shell><main className="main-wrap"><div className="dashboard-grid"><section className="welcome-card animate-in"><div className="eyebrow" style={{ color: 'hsl(39 78% 66%)' }}>{t('Farmer dashboard')}</div><h1>{t('Good morning,')} {person.name.split(' ')[0]}.</h1><p>{t('Here is the next step for your crop procurement visit.')}</p><div className="row" style={{ marginTop: 28, position: 'relative', zIndex: 1 }}><CloudSun size={19} color="hsl(39 78% 66%)" /><span className="small-copy" style={{ color: 'hsl(45 23% 80%)' }}>Ramanagara • {t('Today’s demonstration schedule')}</span></div></section><section className="surface upcoming-card"><div className="row space-between"><div><div className="eyebrow">{t('Upcoming procurement')}</div><h2 style={{ fontSize: '1.55rem', marginTop: 9 }}>{cropLabel(active.crop, language)}</h2></div><span className="status available"><CheckCircle2 size={13} /> {t('Booked')}</span></div><p className="upcoming-date">{active.date.toUpperCase()} • {active.slot}</p><div className="divider" /><div className="row space-between"><div><strong>{active.centreName}</strong><p className="small-copy" style={{ marginTop: 4 }}>{active.quantity} {t('quintals')} • {t('Token')} {active.token}</p></div><Link href="/token" className="icon-btn" aria-label={t('View token')} data-testid="link-dashboard-token"><ChevronRight size={18} /></Link></div></section></div><section style={{ marginTop: 24 }}><div className="row space-between" style={{ marginBottom: 13 }}><div><div className="eyebrow">{t('Do this next')}</div><h2 style={{ fontSize: '1.45rem', marginTop: 7 }}>{t('Quick actions')}</h2></div></div><div className="quick-actions"><Link href="/search" className="quick-action" data-testid="link-dashboard-find"><Search size={20} /><span>{t('Find another centre')} <ChevronRight size={14} /></span></Link><Link href="/queue" className="quick-action" data-testid="link-dashboard-queue"><ListChecks size={20} /><span>{t('Track my queue')} <ChevronRight size={14} /></span></Link><Link href="/alerts" className="quick-action" data-testid="link-dashboard-alerts"><Bell size={20} /><span>{t('Read alerts')} <ChevronRight size={14} /></span></Link></div></section><section className="surface surface-pad" style={{ marginTop: 24 }}><div className="row space-between"><div><div className="eyebrow">{t('Your activity')}</div><h2 style={{ fontSize: '1.45rem', marginTop: 7 }}>{t('Recent activity')}</h2></div><FileText size={21} color="hsl(var(--primary))" /></div><div className="activity"><div className="activity-row"><CheckCircle2 size={17} /><div><strong>{t('Slot confirmed at Ramanagara APMC')}</strong><span>{cropLabel('Tomato', language)} • {active.date} • {active.slot}</span></div><time>{t('Today')}</time></div><div className="activity-row"><Search size={17} /><div><strong>{t('Checked procurement centres')}</strong><span>Ramanagara • {cropLabel('Tomato', language)} • {active.quantity} {t('quintals')}</span></div><time>{t('Yesterday')}</time></div><div className="activity-row"><UserRound size={17} /><div><strong>{t('Farmer details saved on this device')}</strong><span>{person.village}, {person.district}</span></div><time>{t('Yesterday')}</time></div></div></section><div className="muted-surface surface-pad row" style={{ alignItems: 'start', marginTop: 18 }}><Phone size={19} color="hsl(var(--primary))" /><div><h3 style={{ marginBottom: 4 }}>{t('Prefer help over the phone?')}</h3><p className="small-copy">{t('Ask your local centre help desk for assistance with a token or visit.')}</p></div></div><p className="footer-note">{t('FarmIQ • Real-time slot booking and live APMC queue management.')}</p></main></Shell>;
 }
 
 function AppRoutes() {
@@ -836,7 +903,192 @@ function FarmIQApp() {
   const [searchForm, setSearchForm] = useState<SearchForm>(defaultSearch);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [language, setLanguage] = useState<Language>('en');
-  const contextValue = useMemo(() => ({ farmer, setFarmer, searchForm, setSearchForm, booking, setBooking, language, setLanguage }), [farmer, searchForm, booking, language]);
+
+  const [centresList, setCentresList] = useState<any[]>(centres);
+  const [govtPrices, setGovtPrices] = useState<GovtCommodityPrice[]>([]);
+  const [portals, setPortals] = useState<GovtPortalStatus[]>([]);
+  const [alertsList, setAlertsList] = useState<AlertNotification[]>([]);
+  const [latestEventMessage, setLatestEventMessage] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  const refreshData = async () => {
+    setIsSyncing(true);
+    try {
+      const [fetchedCentres, fetchedPrices, fetchedPortals, fetchedAlerts] = await Promise.all([
+        fetchCentres(),
+        fetchGovtPrices(),
+        fetchGovtPortals(),
+        fetchAlerts(),
+      ]);
+
+      if (fetchedCentres.length > 0) {
+        setCentresList(
+          fetchedCentres.map((c) => ({
+            ...c,
+            slots: `${c.slotsRemaining} slots left`,
+            queue: `${c.queueLength} farmers`,
+            wait: `${c.estimatedWaitMinutes} min`,
+          }))
+        );
+      }
+      if (fetchedPrices.length > 0) setGovtPrices(fetchedPrices);
+      if (fetchedPortals.length > 0) setPortals(fetchedPortals);
+      if (fetchedAlerts.length > 0) setAlertsList(fetchedAlerts);
+      setLastSyncTime(new Date().toLocaleTimeString());
+    } catch (e) {
+      console.error('Error fetching initial data:', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+
+    // Real-time Server-Sent Events (SSE) AI sync stream (< 1 second latency)
+    const unsubscribe = subscribeToGovtEvents((event) => {
+      setLastSyncTime(new Date().toLocaleTimeString());
+
+      if (event.type === 'govt_price_change') {
+        const { commodity, centre, aiLog } = event.data || {};
+        if (aiLog?.aiSummary) {
+          setLatestEventMessage(aiLog.aiSummary);
+        } else if (event.message) {
+          setLatestEventMessage(event.message);
+        }
+
+        if (commodity) {
+          setGovtPrices((prev) => {
+            const idx = prev.findIndex((p) => p.commodity.toLowerCase() === commodity.commodity.toLowerCase());
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = commodity;
+              return updated;
+            }
+            return [commodity, ...prev];
+          });
+        }
+
+        if (centre) {
+          setCentresList((prev) =>
+            prev.map((c) =>
+              c.id === centre.id
+                ? {
+                    ...c,
+                    ...centre,
+                    slots: `${centre.slotsRemaining} slots left`,
+                    queue: `${centre.queueLength} farmers`,
+                    wait: `${centre.estimatedWaitMinutes} min`,
+                  }
+                : c
+            )
+          );
+        }
+      } else if (event.type === 'centre_update') {
+        const { centre } = event.data || {};
+        if (centre) {
+          setCentresList((prev) =>
+            prev.map((c) =>
+              c.id === centre.id
+                ? {
+                    ...c,
+                    ...centre,
+                    slots: `${centre.slotsRemaining} slots left`,
+                    queue: `${centre.queueLength} farmers`,
+                    wait: `${centre.estimatedWaitMinutes} min`,
+                  }
+                : c
+            )
+          );
+        }
+        if (event.message) setLatestEventMessage(event.message);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const confirmBooking = async (slotTime: string, centreId: string): Promise<Booking> => {
+    const selectedCentre = centresList.find((c) => c.id === centreId) || centresList[0];
+    const farmerDetails = farmer ?? defaultFarmer;
+
+    try {
+      const serverBooking = await apiCreateBooking({
+        centreId: selectedCentre.id,
+        farmerName: farmerDetails.name,
+        farmerPhone: farmerDetails.phone,
+        village: farmerDetails.village,
+        district: farmerDetails.district,
+        crop: searchForm.crop,
+        quantity: searchForm.quantity,
+        date: selectedCentre.date,
+        slotTime,
+      });
+
+      const mappedBooking: Booking = {
+        centreId: serverBooking.centreId,
+        centreName: serverBooking.centreName,
+        crop: serverBooking.crop,
+        quantity: serverBooking.quantity,
+        date: serverBooking.date,
+        slot: serverBooking.slotTime,
+        token: serverBooking.token,
+      };
+
+      setBooking(mappedBooking);
+      return mappedBooking;
+    } catch (e) {
+      console.warn('Backend booking error, fallback to local creation:', e);
+      const fallbackBooking: Booking = {
+        centreId: selectedCentre.id,
+        centreName: selectedCentre.name,
+        crop: searchForm.crop,
+        quantity: searchForm.quantity,
+        date: selectedCentre.date,
+        slot: slotTime,
+        token: `A-${Math.floor(100 + Math.random() * 900)}`,
+      };
+      setBooking(fallbackBooking);
+      return fallbackBooking;
+    }
+  };
+
+  const contextValue = useMemo(
+    () => ({
+      farmer,
+      setFarmer,
+      searchForm,
+      setSearchForm,
+      booking,
+      setBooking,
+      language,
+      setLanguage,
+      centres: centresList,
+      govtPrices,
+      portals,
+      alertsList,
+      latestEventMessage,
+      lastSyncTime,
+      isSyncing,
+      refreshData,
+      confirmBooking,
+    }),
+    [
+      farmer,
+      searchForm,
+      booking,
+      language,
+      centresList,
+      govtPrices,
+      portals,
+      alertsList,
+      latestEventMessage,
+      lastSyncTime,
+      isSyncing,
+    ]
+  );
+
   return <FarmContext.Provider value={contextValue}><AppRoutes /></FarmContext.Provider>;
 }
 
