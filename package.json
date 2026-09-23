@@ -7,8 +7,8 @@
     "dev": "pnpm --filter farmiq run dev",
     "dev:frontend": "pnpm --filter farmiq run dev",
     "dev:api": "pnpm --filter @workspace/api-server run dev",
-    "build": "pnpm -r --if-present run build && node ./scripts/bundle-api.mjs && node ./scripts/sync-build-output.mjs",
-    "build:vercel": "pnpm --filter @workspace/farmiq run build && node ./scripts/bundle-api.mjs && node ./scripts/sync-build-output.mjs",
+    "build": "pnpm -r --if-present run build && node ./scripts/sync-build-output.mjs",
+    "build:vercel": "pnpm --filter @workspace/farmiq run build && node ./scripts/sync-build-output.mjs",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },

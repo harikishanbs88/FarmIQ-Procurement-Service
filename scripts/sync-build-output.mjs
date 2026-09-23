@@ -10,11 +10,13 @@ if (!fs.existsSync(srcDir)) {
   process.exit(1);
 }
 
-// Synchronize to ./public
+// Clean and synchronize to ./public
+fs.rmSync(destPublic, { recursive: true, force: true });
 fs.mkdirSync(destPublic, { recursive: true });
 fs.cpSync(srcDir, destPublic, { recursive: true });
 
-// Synchronize to ./dist
+// Clean and synchronize to ./dist
+fs.rmSync(destDist, { recursive: true, force: true });
 fs.mkdirSync(destDist, { recursive: true });
 fs.cpSync(srcDir, destDist, { recursive: true });
 
